@@ -10,6 +10,43 @@ export interface AdvancedSettings {
   amazonCompliance: boolean;
 }
 
+export interface LocalizedField {
+  original: string;
+  zh: string;
+}
+
+export interface ListingResult {
+  title: LocalizedField;
+  highlight: LocalizedField;
+  bullets: LocalizedField[];
+  description: LocalizedField;
+  meta: {
+    sourceLanguage: string;
+    targetLanguage: string;
+  };
+}
+
+export interface GenerateApiResponse {
+  title: LocalizedField;
+  highlight: LocalizedField;
+  bullets: LocalizedField[];
+  description: LocalizedField;
+  meta: {
+    sourceLanguage: string;
+    targetLanguage: string;
+  };
+  warnings?: string[];
+  complianceWarnings?: string[];
+  error?: string;
+}
+
+export interface GeneratedOutput {
+  title?: string;
+  highlights?: string;
+  bullets?: string[];
+  description?: string;
+}
+
 export interface ProductFacts {
   brand: string;
   category: string;
@@ -30,13 +67,6 @@ export interface RankedSellingPoint {
   priority: number;
 }
 
-export interface GeneratedOutput {
-  title?: string;
-  highlights?: string;
-  bullets?: string[];
-  description?: string;
-}
-
 export interface ValidationResult {
   valid: boolean;
   errors: string[];
@@ -44,20 +74,11 @@ export interface ValidationResult {
 }
 
 export const FORBIDDEN_PHRASES = [
-  "best",
-  "perfect",
-  "no.1",
-  "top-rated",
-  "guaranteed",
-  "100% safe",
-  "the most powerful",
-  "buy now",
-  "don't miss out",
-  "must-have for everyone",
-  "wow your guests",
-  "life-changing",
-  "better than all competitors",
-  "more powerful than others",
+  "best", "perfect", "no.1", "top-rated", "guaranteed",
+  "100% safe", "the most powerful", "buy now",
+  "don't miss out", "must-have for everyone",
+  "wow your guests", "life-changing",
+  "better than all competitors", "more powerful than others",
   "best on amazon",
 ];
 

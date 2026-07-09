@@ -17,10 +17,12 @@ import {
   buildDescriptionSystemPrompt,
   buildDescriptionUserPrompt,
 } from "@/prompts/descriptionPrompt";
-import { buildLanguageInstruction, getAmazonSite } from "@/lib/languageProcessor";
+import { detectSourceLanguage, normalizeTargetLanguage, buildLanguageInstruction } from "@/lib/languageProcessor";
 import { checkCompliance, cleanCopy, validateAllOutputs } from "@/lib/compliance";
 import { checkAllDuplicates } from "@/lib/duplicateChecker";
-import { detectLanguage } from "@/lib/language";
+import { translateToChinese, translateBulletsToChinese } from "@/lib/translator";
+import { SupportedLanguage } from "@/lib/languageConfig";
+import { LocalizedField } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -39,12 +41,32 @@ interface GenerateRequest {
 }
 
 interface GenerateResponse {
-  title?: string;
-  highlights?: string;
-  bullets?: string[];
-  description?: string;
+  title: LocalizedField;
+  highlight: LocalizedField;
+  bullets: LocalizedField[];
+  description: LocalizedField;
+  meta: {
+    sourceLanguage: string;
+    targetLanguage: string;
+  };
   warnings?: string[];
   complianceWarnings?: string[];
+}
+
+function emptyField(): LocalizedField {
+  return { original: "", zh: "" };
+}
+
+function emptyBullets(): LocalizedField[] {
+  return [{ original: "", zh: "" }];
+}
+
+function cleanAndCap(text: string, maxLen: number): string {
+  let cleaned = cleanCopy(text);
+  if (cleaned.length > maxLen) {
+    cleaned = cleaned.slice(0, maxLen - 3).replace(/\s+\S*$/, "") + "...";
+  }
+  return cleaned;
 }
 
 export async function POST(request: NextRequest) {
@@ -62,13 +84,19 @@ export async function POST(request: NextRequest) {
     const warnings: string[] = [];
     const complianceWarnings: string[] = [];
 
-    const detectedLanguage = detectLanguage(productInfo);
-    const languageInstruction = buildLanguageInstruction(language || "en");
+    // Step 1: Normalize target language (user's choice - this is the ONLY determinant)
+    const targetLanguage: SupportedLanguage = normalizeTargetLanguage(language || "English");
 
-    // Step 1: Extract product facts using AI
+    // Step 2: Detect source language (for info only - does NOT affect output)
+    const sourceLanguage = detectSourceLanguage(productInfo);
+
+    // Step 3: Build language instruction for prompts
+    const languageInstruction = buildLanguageInstruction(targetLanguage, sourceLanguage);
+
+    // Step 4: Extract product facts using AI
     let facts: ExtractedFacts;
     try {
-      const extractionPrompt = buildExtractionPrompt(productInfo, detectedLanguage);
+      const extractionPrompt = buildExtractionPrompt(productInfo, sourceLanguage);
       facts = await callDeepSeekJSON<ExtractedFacts>({
         systemPrompt: "Extract structured product information as JSON. Return ONLY valid JSON, no markdown, no extra text.",
         userPrompt: extractionPrompt,
@@ -90,20 +118,31 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    const result: GenerateResponse = {};
+    const result: GenerateResponse = {
+      title: emptyField(),
+      highlight: emptyField(),
+      bullets: [],
+      description: emptyField(),
+      meta: {
+        sourceLanguage,
+        targetLanguage,
+      },
+    };
+
     const shouldGenerateTitle = mode === "title-highlights" || mode === "all";
     const shouldGenerateHighlights = mode === "title-highlights" || mode === "all";
     const shouldGenerateBullets = mode === "bullets" || mode === "all";
     const shouldGenerateDescription = mode === "description" || mode === "all";
 
-    // Step 2: Generate title
+    // Step 5: Generate title
     if (shouldGenerateTitle) {
       try {
-        const title = await callDeepSeek({
+        const titleText = await callDeepSeek({
           systemPrompt: buildTitleSystemPrompt(),
           userPrompt: buildTitleUserPrompt({
             brand,
-            targetLanguage: language || "en",
+            targetLanguage,
+            sourceLanguage,
             productType: facts.productType,
             mainKeyword: facts.mainKeyword,
             features: facts.features,
@@ -116,43 +155,44 @@ export async function POST(request: NextRequest) {
           maxTokens: 200,
         });
 
-        result.title = cleanCopy(title);
-
-        // Check title length
-        if (result.title.length > (settings.titleMaxLength || 75)) {
-          complianceWarnings.push(
-            `[Title] Exceeds ${settings.titleMaxLength || 75} character limit (${result.title.length} chars)`
-          );
-        }
-        if (!result.title.startsWith(brand)) {
+        let cleaned = cleanAndCap(titleText, settings.titleMaxLength || 75);
+        if (!cleaned.startsWith(brand)) {
           complianceWarnings.push("[Title] Does not start with brand name");
         }
 
         // Compliance check
         if (settings.amazonCompliance) {
-          const compResult = checkCompliance(result.title);
+          const compResult = checkCompliance(cleaned);
           compResult.violations.forEach((v) => complianceWarnings.push("[Title] " + v));
-          result.title = cleanCopy(compResult.cleanedText);
+          cleaned = cleanCopy(compResult.cleanedText);
+        }
+
+        result.title.original = cleaned;
+
+        // Translate to Chinese
+        try {
+          result.title.zh = await translateToChinese(cleaned, targetLanguage);
+        } catch {
+          result.title.zh = "[Translation failed]";
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         warnings.push("Title generation failed: " + errorMsg);
-        result.title = brand + " " + (facts.productType || "Product");
-        if (result.title.length > (settings.titleMaxLength || 75)) {
-          result.title = result.title.slice(0, settings.titleMaxLength || 75);
-        }
+        const fallback = brand + " " + (facts.productType || "Product");
+        result.title.original = fallback.slice(0, settings.titleMaxLength || 75);
       }
     }
 
-    // Step 3: Generate highlights
-    if (shouldGenerateHighlights && result.title) {
+    // Step 6: Generate highlights
+    if (shouldGenerateHighlights && result.title.original) {
       try {
-        const highlights = await callDeepSeek({
+        const highlightText = await callDeepSeek({
           systemPrompt: buildHighlightSystemPrompt(),
           userPrompt: buildHighlightUserPrompt({
             brand,
-            targetLanguage: language || "en",
-            existingTitle: result.title,
+            targetLanguage,
+            sourceLanguage,
+            existingTitle: result.title.original,
             productType: facts.productType,
             features: facts.features,
             specifications: facts.specifications,
@@ -164,88 +204,103 @@ export async function POST(request: NextRequest) {
           maxTokens: 200,
         });
 
-        result.highlights = cleanCopy(highlights);
-
-        if (result.highlights.length > (settings.highlightMaxLength || 125)) {
-          complianceWarnings.push(
-            `[Highlights] Exceeds ${settings.highlightMaxLength || 125} character limit`
-          );
-        }
+        let cleaned = cleanAndCap(highlightText, settings.highlightMaxLength || 125);
 
         if (settings.amazonCompliance) {
-          const compResult = checkCompliance(result.highlights);
+          const compResult = checkCompliance(cleaned);
           compResult.violations.forEach((v) => complianceWarnings.push("[Highlights] " + v));
-          result.highlights = cleanCopy(compResult.cleanedText);
+          cleaned = cleanCopy(compResult.cleanedText);
+        }
+
+        result.highlight.original = cleaned;
+
+        // Translate to Chinese
+        try {
+          result.highlight.zh = await translateToChinese(cleaned, targetLanguage);
+        } catch {
+          result.highlight.zh = "[Translation failed]";
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         warnings.push("Highlight generation failed: " + errorMsg);
-        result.highlights = facts.features.slice(0, 2).join(". ") + ".";
-        if (result.highlights.length > (settings.highlightMaxLength || 125)) {
-          result.highlights = result.highlights.slice(0, settings.highlightMaxLength || 125);
-        }
+        result.highlight.original = facts.features.slice(0, 2).join(". ") + ".";
       }
     }
 
-    // Step 4: Generate bullet points
+    // Step 7: Generate bullet points
     if (shouldGenerateBullets) {
       try {
         const bulletsText = await callDeepSeek({
           systemPrompt: buildBulletsSystemPrompt(),
           userPrompt: buildBulletsUserPrompt({
             brand,
-            targetLanguage: language || "en",
+            targetLanguage,
+            sourceLanguage,
             productType: facts.productType,
             features: facts.features,
             specifications: facts.specifications,
             materials: facts.materials,
             certifications: facts.certifications,
             useCases: facts.useCases,
-            existingTitle: result.title,
+            existingTitle: result.title.original,
             languageInstruction,
           }),
           temperature: 0.7,
           maxTokens: 800,
         });
 
-        result.bullets = bulletsText
+        const rawBullets = bulletsText
           .split("\n")
           .map((b) => b.trim())
           .filter((b) => b.length > 10)
           .slice(0, 5);
 
-        while (result.bullets.length < 5) {
-          result.bullets.push("VERSATILE USE: Designed for " + (facts.useCases[0] || "daily use") + ". Perfect for any setting.");
+        while (rawBullets.length < 5) {
+          rawBullets.push("VERSATILE USE: Designed for " + (facts.useCases[0] || "daily use") + ".");
         }
 
-        if (settings.amazonCompliance) {
-          result.bullets = result.bullets.map((b) => {
-            const compResult = checkCompliance(b);
+        const processed = rawBullets.map((b) => {
+          let cleaned = b;
+          if (settings.amazonCompliance) {
+            const compResult = checkCompliance(cleaned);
             compResult.violations.forEach((v) => complianceWarnings.push("[Bullet] " + v));
-            return cleanCopy(compResult.cleanedText);
-          });
+            cleaned = cleanCopy(compResult.cleanedText);
+          }
+          return cleaned;
+        });
+
+        // Store originals
+        result.bullets = processed.map((b) => ({ original: b, zh: "" }));
+
+        // Translate to Chinese (one by one)
+        const zhTranslations = await translateBulletsToChinese(processed, targetLanguage);
+        for (let i = 0; i < result.bullets.length; i++) {
+          if (i < zhTranslations.length) {
+            result.bullets[i].zh = zhTranslations[i];
+          }
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         warnings.push("Bullet generation failed: " + errorMsg);
         result.bullets = [
-          "EFFICIENT PERFORMANCE: Reliable and consistent " + (facts.productType || "performance") + " for everyday use.",
-          "EASY TO USE: Simple operation designed for effortless " + (facts.useCases[0] || "use") + ".",
-          "THOUGHTFUL DESIGN: Compact and practical for any setting.",
-          "EASY MAINTENANCE: Simple to clean and maintain.",
-          "PEACE OF MIND: Quality construction with reliable performance.",
+          { original: "EFFICIENT PERFORMANCE: Reliable " + (facts.productType || "performance") + ".", zh: "" },
+          { original: "EASY TO USE: Simple operation for everyday use.", zh: "" },
+          { original: "THOUGHTFUL DESIGN: Compact and practical.", zh: "" },
+          { original: "EASY MAINTENANCE: Simple to clean.", zh: "" },
+          { original: "PEACE OF MIND: Quality construction.", zh: "" },
         ];
       }
     }
 
-    // Step 5: Generate description
+    // Step 8: Generate description
     if (shouldGenerateDescription) {
       try {
-        const description = await callDeepSeek({
+        const descriptionText = await callDeepSeek({
           systemPrompt: buildDescriptionSystemPrompt(),
           userPrompt: buildDescriptionUserPrompt({
             brand,
-            targetLanguage: language || "en",
+            targetLanguage,
+            sourceLanguage,
             productType: facts.productType,
             features: facts.features,
             specifications: facts.specifications,
@@ -253,38 +308,45 @@ export async function POST(request: NextRequest) {
             certifications: facts.certifications,
             useCases: facts.useCases,
             supportInfo: [],
-            existingBullets: result.bullets,
+            existingBullets: result.bullets.map((b) => b.original),
             languageInstruction,
           }),
           temperature: 0.7,
           maxTokens: 1000,
         });
 
-        result.description = description;
-
+        let cleaned = descriptionText;
         if (settings.amazonCompliance) {
-          const compResult = checkCompliance(result.description);
+          const compResult = checkCompliance(cleaned);
           compResult.violations.forEach((v) => complianceWarnings.push("[Description] " + v));
-          result.description = compResult.cleanedText;
+          cleaned = compResult.cleanedText;
+        }
+
+        result.description.original = cleaned;
+
+        // Translate to Chinese
+        try {
+          result.description.zh = await translateToChinese(cleaned, targetLanguage);
+        } catch {
+          result.description.zh = "[Translation failed]";
         }
       } catch (err: unknown) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
         warnings.push("Description generation failed: " + errorMsg);
-        const productType = facts.productType || "product";
-        result.description =
-          `The ${brand} ${productType} is designed for ${facts.useCases.slice(0, 2).join(" and ") || "daily use"}. ` +
-          `Featuring ${facts.features.slice(0, 2).join(" and ") || "quality performance"}, it delivers consistent results. ` +
-          `Built with ${facts.materials.join(", ") || "quality materials"} for lasting durability.`;
+        const pt = facts.productType || "product";
+        result.description.original =
+          "The " + brand + " " + pt + " is designed for " +
+          (facts.useCases.slice(0, 2).join(" and ") || "daily use") + ".";
       }
     }
 
-    // Step 6: Deduplication checks
-    if (settings.strictDedupe && result.title && result.highlights && result.bullets && result.description) {
+    // Step 9: Deduplication checks
+    if (settings.strictDedupe && result.title.original && result.highlight.original && result.bullets.length > 0 && result.description.original) {
       const dedupeIssues = checkAllDuplicates(
-        result.title,
-        result.highlights,
-        result.bullets,
-        result.description
+        result.title.original,
+        result.highlight.original,
+        result.bullets.map((b) => b.original),
+        result.description.original
       );
       dedupeIssues.forEach((issue) => warnings.push("[Deduplication] " + issue));
     }

@@ -1,6 +1,4 @@
-import { ProductFacts, RankedSellingPoint, GeneratedOutput, OutputMode, AdvancedSettings } from "@/types";
-import { extractFacts } from "@/lib/extractFacts";
-import { detectLanguage } from "@/lib/language";
+import { OutputMode, AdvancedSettings, GenerateApiResponse, LocalizedField } from "@/types";
 import { validateInput } from "@/lib/validators";
 
 export interface GenerateRequest {
@@ -12,20 +10,27 @@ export interface GenerateRequest {
 }
 
 export interface GenerateResult {
-  output: GeneratedOutput;
+  output: GenerateApiResponse;
   warnings: string[];
   validationErrors: string[];
   complianceWarnings: string[];
 }
 
-export async function generateAmazonCopy(request: GenerateRequest): Promise<GenerateResult> {
+export async function generateAmazonCopy(
+  request: GenerateRequest
+): Promise<GenerateResult> {
   const { rawText, brand, targetLanguage, mode, settings } = request;
 
-  // Validate input first
   const inputValidation = validateInput(rawText, brand);
   if (!inputValidation.valid) {
     return {
-      output: {},
+      output: {
+        title: { original: "", zh: "" },
+        highlight: { original: "", zh: "" },
+        bullets: [],
+        description: { original: "", zh: "" },
+        meta: { sourceLanguage: "", targetLanguage: "" },
+      },
       warnings: inputValidation.errors,
       validationErrors: inputValidation.errors,
       complianceWarnings: [],
@@ -54,41 +59,39 @@ export async function generateAmazonCopy(request: GenerateRequest): Promise<Gene
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       return {
-        output: {},
+        output: {
+          title: { original: "", zh: "" },
+          highlight: { original: "", zh: "" },
+          bullets: [],
+          description: { original: "", zh: "" },
+          meta: { sourceLanguage: "", targetLanguage: "" },
+        },
         warnings: [errorData.error || "API request failed with status " + response.status],
         validationErrors: [],
         complianceWarnings: [],
       };
     }
 
-    const data = await response.json();
-
-    const output: GeneratedOutput = {
-      title: data.title,
-      highlights: data.highlights,
-      bullets: data.bullets,
-      description: data.description,
-    };
+    const data: GenerateApiResponse = await response.json();
 
     return {
-      output,
+      output: data,
       warnings: data.warnings || [],
       validationErrors: [],
       complianceWarnings: data.complianceWarnings || [],
     };
   } catch (err) {
     return {
-      output: {},
+      output: {
+        title: { original: "", zh: "" },
+        highlight: { original: "", zh: "" },
+        bullets: [],
+        description: { original: "", zh: "" },
+        meta: { sourceLanguage: "", targetLanguage: "" },
+      },
       warnings: ["Network error: " + (err instanceof Error ? err.message : "Failed to connect to API")],
       validationErrors: [],
       complianceWarnings: [],
     };
   }
-
-  return {
-    output: {},
-    warnings: [],
-    validationErrors: [],
-    complianceWarnings: [],
-  };
 }

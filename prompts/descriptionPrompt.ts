@@ -1,3 +1,5 @@
+import { SupportedLanguage } from "@/lib/languageConfig";
+
 export function buildDescriptionSystemPrompt(): string {
   return `You are an expert Amazon listing copywriter specializing in writing Amazon product descriptions.
 
@@ -21,7 +23,8 @@ CRITICAL: Output ONLY the description with proper paragraph breaks (double newli
 
 export function buildDescriptionUserPrompt(params: {
   brand: string;
-  targetLanguage: string;
+  targetLanguage: SupportedLanguage;
+  sourceLanguage: string;
   productType: string;
   features: string[];
   specifications: string[];
@@ -32,11 +35,12 @@ export function buildDescriptionUserPrompt(params: {
   existingBullets?: string[];
   languageInstruction: string;
 }): string {
-  const { brand, targetLanguage, productType, features, specifications, materials, certifications, useCases, supportInfo, existingBullets, languageInstruction } = params;
+  const { brand, targetLanguage, sourceLanguage, productType, features, specifications, materials, certifications, useCases, supportInfo, existingBullets, languageInstruction } = params;
 
   return `Generate an Amazon product description with the following parameters:
 
 Target Language: ${targetLanguage}
+Source Language of Input: ${sourceLanguage}
 
 Product Type: ${productType}
 Brand: ${brand}

@@ -1,12 +1,13 @@
 "use client";
 
-import { RefreshCw, Copy, Check, AlertTriangle } from "lucide-react";
+import { RefreshCw, Copy, Check, AlertTriangle, Languages } from "lucide-react";
 import { useState } from "react";
 import CharacterCounter from "./CharacterCounter";
 
 interface OutputCardProps {
   label: string;
   content: string;
+  zhContent?: string;
   maxLength?: number;
   onRegenerate?: () => void;
   editable?: boolean;
@@ -15,13 +16,13 @@ interface OutputCardProps {
 export default function OutputCard({
   label,
   content,
+  zhContent,
   maxLength,
   onRegenerate,
   editable = true,
 }: OutputCardProps) {
   const [copied, setCopied] = useState(false);
   const [editContent, setEditContent] = useState(content);
-  const [isEditing, setIsEditing] = useState(false);
 
   const handleCopy = async () => {
     try {
@@ -59,7 +60,7 @@ export default function OutputCard({
             <button
               className="p-1.5 rounded hover:opacity-80 transition-opacity"
               style={{ color: "var(--text-secondary)" }}
-              title="重新生成"
+              title="????"
               onClick={onRegenerate}
             >
               <RefreshCw size={14} />
@@ -70,7 +71,7 @@ export default function OutputCard({
             style={{
               color: copied ? "var(--success)" : "var(--text-secondary)",
             }}
-            title="复制到剪贴板"
+            title="??????"
             onClick={handleCopy}
           >
             {copied ? <Check size={14} /> : <Copy size={14} />}
@@ -87,12 +88,7 @@ export default function OutputCard({
             minHeight: "60px",
           }}
           value={editContent}
-          onChange={(e) => {
-            setEditContent(e.target.value);
-            setIsEditing(true);
-          }}
-          onFocus={() => setIsEditing(true)}
-          onBlur={() => setIsEditing(false)}
+          onChange={(e) => setEditContent(e.target.value)}
         />
       ) : (
         <div
@@ -106,7 +102,24 @@ export default function OutputCard({
       {isOverLimit && (
         <div className="flex items-center gap-1 mt-1.5 text-xs" style={{ color: "var(--error)" }}>
           <AlertTriangle size={12} />
-          <span>超出 {maxLength} 字符限制</span>
+          <span>?? {maxLength} ????</span>
+        </div>
+      )}
+
+      {/* Chinese reference translation */}
+      {zhContent && (
+        <div
+          className="mt-3 p-2 rounded text-xs"
+          style={{
+            background: "rgba(59,130,246,0.08)",
+            border: "1px solid rgba(59,130,246,0.15)",
+          }}
+        >
+          <div className="flex items-center gap-1 mb-1" style={{ color: "var(--accent)" }}>
+            <Languages size={12} />
+            <span style={{ fontWeight: 500 }}>??????</span>
+          </div>
+          <p style={{ color: "var(--text-secondary)", lineHeight: 1.5 }}>{zhContent}</p>
         </div>
       )}
     </div>

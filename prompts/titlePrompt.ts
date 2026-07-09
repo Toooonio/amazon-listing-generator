@@ -1,3 +1,5 @@
+import { SupportedLanguage } from "@/lib/languageConfig";
+
 export function buildTitleSystemPrompt(): string {
   return `You are an expert Amazon listing copywriter specializing in writing high-converting, Amazon-compliant product titles.
 
@@ -18,7 +20,8 @@ CRITICAL: Output ONLY the title text. No quotes, no labels, no extra text.`;
 
 export function buildTitleUserPrompt(params: {
   brand: string;
-  targetLanguage: string;
+  targetLanguage: SupportedLanguage;
+  sourceLanguage: string;
   productType: string;
   mainKeyword: string;
   features: string[];
@@ -27,12 +30,13 @@ export function buildTitleUserPrompt(params: {
   titleMaxLength: number;
   languageInstruction: string;
 }): string {
-  const { brand, targetLanguage, productType, mainKeyword, features, specifications, useCases, titleMaxLength, languageInstruction } = params;
+  const { brand, targetLanguage, sourceLanguage, productType, mainKeyword, features, specifications, useCases, titleMaxLength, languageInstruction } = params;
 
   return `Generate an Amazon product title with the following parameters:
 
 Brand: ${brand}
 Target Language: ${targetLanguage}
+Source Language of Input: ${sourceLanguage}
 Title Max Length: ${titleMaxLength} characters (including brand name)
 
 Product Type: ${productType}

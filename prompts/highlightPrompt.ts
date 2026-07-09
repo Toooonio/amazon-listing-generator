@@ -1,3 +1,5 @@
+import { SupportedLanguage } from "@/lib/languageConfig";
+
 export function buildHighlightSystemPrompt(): string {
   return `You are an expert Amazon listing copywriter specializing in writing Amazon product highlights.
 
@@ -15,7 +17,8 @@ CRITICAL: Output ONLY the highlight text. No quotes, no labels, no extra text.`;
 
 export function buildHighlightUserPrompt(params: {
   brand: string;
-  targetLanguage: string;
+  targetLanguage: SupportedLanguage;
+  sourceLanguage: string;
   existingTitle: string;
   productType: string;
   features: string[];
@@ -24,11 +27,12 @@ export function buildHighlightUserPrompt(params: {
   highlightMaxLength: number;
   languageInstruction: string;
 }): string {
-  const { brand, targetLanguage, existingTitle, productType, features, specifications, useCases, highlightMaxLength, languageInstruction } = params;
+  const { brand, targetLanguage, sourceLanguage, existingTitle, productType, features, specifications, useCases, highlightMaxLength, languageInstruction } = params;
 
   return `Generate an Amazon product highlight with the following parameters:
 
 Target Language: ${targetLanguage}
+Source Language of Input: ${sourceLanguage}
 Highlight Max Length: ${highlightMaxLength} characters
 
 Product Type: ${productType}

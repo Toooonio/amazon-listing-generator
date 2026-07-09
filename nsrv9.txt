@@ -2,4 +2,4 @@
   - Local:        http://localhost:3009
 
  ✓ Starting...
- ✓ Ready in 383ms
+ ✓ Ready in 364ms

@@ -11,7 +11,7 @@ import GenerateButton from "@/components/GenerateButton";
 import OutputCard from "@/components/OutputCard";
 import BulletOutput from "@/components/BulletOutput";
 import ComplianceWarning from "@/components/ComplianceWarning";
-import { OutputMode, AdvancedSettings, DEFAULT_SETTINGS, GeneratedOutput } from "@/types";
+import { OutputMode, AdvancedSettings, DEFAULT_SETTINGS, GenerateApiResponse } from "@/types";
 import { generateAmazonCopy, GenerateResult } from "@/lib/generator";
 import { detectLanguage } from "@/lib/language";
 import { validateInput } from "@/lib/validators";
@@ -37,7 +37,13 @@ export default function HomePage() {
     const inputValidation = validateInput(productText, brand);
     if (!inputValidation.valid) {
       setResult({
-        output: {},
+                output: {
+          title: { original: "", zh: "" },
+          highlight: { original: "", zh: "" },
+          bullets: [],
+          description: { original: "", zh: "" },
+          meta: { sourceLanguage: "", targetLanguage: "" },
+        },
         warnings: inputValidation.errors,
         validationErrors: inputValidation.errors,
         complianceWarnings: [],
@@ -59,7 +65,13 @@ export default function HomePage() {
         setResult(genResult);
       } catch (err) {
         setResult({
-          output: {},
+                  output: {
+          title: { original: "", zh: "" },
+          highlight: { original: "", zh: "" },
+          bullets: [],
+          description: { original: "", zh: "" },
+          meta: { sourceLanguage: "", targetLanguage: "" },
+        },
           warnings: ["生成过程中出现错误，请重试。"],
           validationErrors: [],
           complianceWarnings: [],
@@ -82,14 +94,14 @@ export default function HomePage() {
       prev
         ? {
             ...prev,
-            output: { ...prev.output, title: genResult.output.title, highlights: genResult.output.highlights },
+            output: { ...prev.output, title: genResult.output.title, highlight: genResult.output.highlight },
           }
         : prev
     );
   }, [productText, brand, targetLanguage, settings]);
 
   const regenerateHighlights = useCallback(async () => {
-    if (!productText || !brand || !result?.output.title) return;
+    if (!productText || !brand || !result?.output.title?.original) return;
         const genResult = await generateAmazonCopy({
       rawText: productText,
       brand: brand.trim(),
@@ -99,7 +111,7 @@ export default function HomePage() {
     });
     setResult((prev) =>
       prev
-        ? { ...prev, output: { ...prev.output, highlights: genResult.output.highlights } }
+        ? { ...prev, output: { ...prev.output, highlight: genResult.output.highlight } }
         : prev
     );
   }, [productText, brand, targetLanguage, settings, result]);
@@ -132,11 +144,11 @@ export default function HomePage() {
     );
   }, [productText, brand, targetLanguage, settings]);
 
-  const output = result?.output || {};
-  const hasTitle = !!(mode === "title-highlights" || mode === "all") && !!output.title;
-  const hasHighlights = !!(mode === "title-highlights" || mode === "all") && !!output.highlights;
-  const hasBullets = !!(mode === "bullets" || mode === "all") && !!output.bullets;
-  const hasDescription = !!(mode === "description" || mode === "all") && !!output.description;
+  const output = result?.output || { title: { original: "", zh: "" }, highlight: { original: "", zh: "" }, bullets: [], description: { original: "", zh: "" }, meta: { sourceLanguage: "", targetLanguage: "" } };
+  const hasTitle = !!(mode === "title-highlights" || mode === "all") && !!output.title?.original;
+  const hasHighlights = !!(mode === "title-highlights" || mode === "all") && !!output.highlight?.original;
+  const hasBullets = !!(mode === "bullets" || mode === "all") && !!output.bullets?.length;
+  const hasDescription = !!(mode === "description" || mode === "all") && !!output.description?.original;
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
@@ -181,6 +193,12 @@ export default function HomePage() {
           {/* Right: Output area */}
           <div className="space-y-4 lg:col-span-3">
             <h2 className="text-lg font-semibold">生成结果</h2>
+            {output.meta?.targetLanguage && (
+              <div className="flex items-center gap-4 text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
+                <span><span style={{ color: "var(--accent)" }}>检测到的输入语言:</span> {output.meta.sourceLanguage || "未知"}</span>
+                <span><span style={{ color: "var(--accent)" }}>输出语言:</span> {output.meta.targetLanguage}</span>
+              </div>
+            )}
 
             {!result && !loading && (
               <div
@@ -251,19 +269,21 @@ export default function HomePage() {
             {/* Output cards */}
             {!loading && (
               <div className="space-y-4">
-                {hasTitle && output.title && (
+                {hasTitle && output.title?.original && (
                   <OutputCard
                     label="标题"
-                    content={output.title}
+                    content={output.title.original}
+                    zhContent={output.title.zh}
                     maxLength={settings.titleMaxLength}
                     onRegenerate={regenerateTitle}
                   />
                 )}
 
-                {hasHighlights && output.highlights && (
+                {hasHighlights && output.highlight?.original && (
                   <OutputCard
                     label="亮点"
-                    content={output.highlights}
+                    content={output.highlight.original}
+                    zhContent={output.highlight.zh}
                     maxLength={settings.highlightMaxLength}
                     onRegenerate={regenerateHighlights}
                   />
@@ -276,10 +296,11 @@ export default function HomePage() {
                   />
                 )}
 
-                {hasDescription && output.description && (
+                {hasDescription && output.description?.original && (
                   <OutputCard
                     label="产品描述"
-                    content={output.description}
+                    content={output.description.original}
+                    zhContent={output.description.zh}
                     onRegenerate={regenerateDescription}
                   />
                 )}

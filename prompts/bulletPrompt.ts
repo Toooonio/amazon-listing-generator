@@ -1,3 +1,5 @@
+import { SupportedLanguage } from "@/lib/languageConfig";
+
 export function buildBulletsSystemPrompt(): string {
   return `You are an expert Amazon listing copywriter specializing in writing Amazon bullet points (key features).
 
@@ -23,7 +25,8 @@ CRITICAL: Output 5 lines, each line is one bullet point. No numbers, no bullet s
 
 export function buildBulletsUserPrompt(params: {
   brand: string;
-  targetLanguage: string;
+  targetLanguage: SupportedLanguage;
+  sourceLanguage: string;
   productType: string;
   features: string[];
   specifications: string[];
@@ -33,11 +36,12 @@ export function buildBulletsUserPrompt(params: {
   existingTitle?: string;
   languageInstruction: string;
 }): string {
-  const { brand, targetLanguage, productType, features, specifications, materials, certifications, useCases, existingTitle, languageInstruction } = params;
+  const { brand, targetLanguage, sourceLanguage, productType, features, specifications, materials, certifications, useCases, existingTitle, languageInstruction } = params;
 
   return `Generate 5 Amazon bullet points with the following parameters:
 
 Target Language: ${targetLanguage}
+Source Language of Input: ${sourceLanguage}
 
 Product Type: ${productType}
 Features: ${features.join("; ")}
