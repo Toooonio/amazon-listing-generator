@@ -86,9 +86,12 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Normalize target language (user's choice - this is the ONLY determinant)
     const targetLanguage: SupportedLanguage = normalizeTargetLanguage(language || "English");
+    console.log("[LANGUAGE DEBUG] targetLanguage:", targetLanguage);
 
     // Step 2: Detect source language (for info only - does NOT affect output)
-    const sourceLanguage = detectSourceLanguage(productInfo);
+    const sourceLanguage = await detectSourceLanguage(productInfo);
+  console.log("[LANGUAGE DEBUG] productInfo:", productInfo.slice(0, 200));
+  console.log("[LANGUAGE DEBUG] detected sourceLanguage:", sourceLanguage);
 
     // Step 3: Build language instruction for prompts
     const languageInstruction = buildLanguageInstruction(targetLanguage, sourceLanguage);

@@ -193,7 +193,7 @@ export default function HomePage() {
           {/* Right: Output area */}
           <div className="space-y-4 lg:col-span-3">
             <h2 className="text-lg font-semibold">生成结果</h2>
-            {output.meta?.targetLanguage && (
+            {output.meta?.sourceLanguage && (
               <div className="flex items-center gap-4 text-xs mt-1" style={{ color: "var(--text-secondary)" }}>
                 <span><span style={{ color: "var(--accent)" }}>检测到的输入语言:</span> {output.meta.sourceLanguage || "未知"}</span>
                 <span><span style={{ color: "var(--accent)" }}>输出语言:</span> {output.meta.targetLanguage}</span>
