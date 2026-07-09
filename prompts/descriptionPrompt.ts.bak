@@ -1,0 +1,57 @@
+import { ProductFacts, RankedSellingPoint } from "@/types";
+import { styleGuideForLanguage } from "@/lib/language";
+
+export function buildDescriptionPrompt(
+  brand: string,
+  targetLanguage: string,
+  facts: ProductFacts,
+  rankedPoints: RankedSellingPoint[],
+  existingBullets?: string[]
+): string {
+  const factSummary = facts.features.slice(0, 10).join("; ");
+  const topPoints = rankedPoints.slice(0, 6).map((p) => p.text).join("; ");
+
+  return \
+You are an expert Amazon listing copywriter.
+
+TASK: Generate a product description for an Amazon listing.
+
+TARGET LANGUAGE: \
+STYLE GUIDE: \
+
+PRODUCT FACTS:
+Brand: \
+Category: \
+Key features: \
+Capacities/specs: \
+Dimensions: \
+Materials: \
+Certifications: \
+Accessories: \
+Use cases: \
+Support/Warranty: \
+
+TOP SELLING POINTS:
+\
+
+\
+
+RECOMMENDED STRUCTURE (3-5 paragraphs):
+1. Overall product value / core use case / scenario
+2. Key specifications + daily use benefits
+3. Convenience features (cleaning, control, portability, etc.)
+4. Trust information (quietness, materials, certifications, warranty, after-sales)
+
+HARD REQUIREMENTS:
+1. Write a complete, flowing product description in natural \.
+2. Do NOT keyword-stuff.
+3. Do NOT just repeat bullet points verbatim.
+4. Do NOT use forbidden phrases like "best", "perfect", "No.1", "top-rated", etc.
+5. Write in a persuasive but honest tone - good conversion without exaggeration.
+6. The description should feel cohesive and well-structured.
+7. Include relevant specifics (specs, features, benefits) naturally within the narrative.
+8. Follow the language style guide for \.
+
+OUTPUT ONLY the description text. Use proper paragraph breaks (double newline between paragraphs).
+\;
+}

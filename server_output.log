@@ -1,0 +1,8 @@
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+
+ ✓ Starting...
+Error: Could not find a production build in the '.next' directory. Try building your app with 'next build' before starting the production server. https://nextjs.org/docs/messages/production-start-no-build-id
+    at setupFsCheck (C:\Users\Dell\Documents\Codex\2026-07-08\listing-listing-1-75-125-2\node_modules\.pnpm\next@14.2.35_react-dom@18.3.1_react@18.3.1__react@18.3.1\node_modules\next\dist\server\lib\router-utils\filesystem.js:151:19)
+    at async initialize (C:\Users\Dell\Documents\Codex\2026-07-08\listing-listing-1-75-125-2\node_modules\.pnpm\next@14.2.35_react-dom@18.3.1_react@18.3.1__react@18.3.1\node_modules\next\dist\server\lib\router-server.js:64:23)
+    at async Server.<anonymous> (C:\Users\Dell\Documents\Codex\2026-07-08\listing-listing-1-75-125-2\node_modules\.pnpm\next@14.2.35_react-dom@18.3.1_react@18.3.1__react@18.3.1\node_modules\next\dist\server\lib\start-server.js:249:36)

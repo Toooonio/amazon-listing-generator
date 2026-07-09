@@ -1,0 +1,50 @@
+import { ProductFacts, RankedSellingPoint } from "@/types";
+import { styleGuideForLanguage } from "@/lib/language";
+
+export function buildHighlightPrompt(
+  brand: string,
+  targetLanguage: string,
+  facts: ProductFacts,
+  rankedPoints: RankedSellingPoint[],
+  highlightMaxLength: number,
+  existingTitle: string
+): string {
+  const factSummary = facts.features.slice(0, 6).join("; ");
+  const topPoints = rankedPoints.slice(0, 5).map((p) => p.text).join("; ");
+
+  return \
+You are an expert Amazon listing copywriter.
+
+TASK: Generate an Amazon product highlight/short description.
+
+TARGET LANGUAGE: \
+HIGHLIGHT MAX LENGTH: \ characters
+
+STYLE GUIDE: \
+
+PRODUCT FACTS:
+Category: \
+Key features: \
+Capacities/specs: \
+Materials: \
+
+TOP SELLING POINTS (ranked by importance):
+\
+
+EXISTING TITLE (DO NOT simply rephrase or repeat this):
+"\"
+
+HARD REQUIREMENTS:
+1. Total length MUST NOT exceed \ characters.
+2. Write ONE concise highlight sentence in natural \.
+3. Do NOT simply rephrase or restate the title.
+4. Focus on selling points NOT already covered in the title.
+5. If the title already mentions core specs (capacity, self-cleaning, etc.), write about DIFFERENT features (ice type, noise level, portability, smart features, etc.).
+6. The same word should not appear more than 2 times across title + highlight combined.
+7. Use different vocabulary from the title where possible.
+8. Do NOT use forbidden phrases like "best", "perfect", "No.1", "top-rated", etc.
+9. The highlight should complement the title, not compete with it.
+
+OUTPUT ONLY the highlight text, nothing else. No quotes, no labels.
+\;
+}

@@ -1,0 +1,51 @@
+import { ProductFacts, RankedSellingPoint } from "@/types";
+import { styleGuideForLanguage } from "@/lib/language";
+
+export function buildTitlePrompt(
+  brand: string,
+  targetLanguage: string,
+  facts: ProductFacts,
+  rankedPoints: RankedSellingPoint[],
+  titleMaxLength: number,
+  existingHighlights?: string
+): string {
+  const factSummary = facts.features.slice(0, 6).join("; ");
+  const topPoints = rankedPoints.slice(0, 5).map((p) => p.text).join("; ");
+
+  return \
+You are an expert Amazon listing copywriter.
+
+TASK: Generate an Amazon product title.
+
+BRAND: \
+TARGET LANGUAGE: \
+TITLE MAX LENGTH: \ characters (including the brand name)
+
+STYLE GUIDE: \
+
+PRODUCT FACTS:
+Category: \
+Key features: \
+Capacities/specs: \
+Materials: \
+Certifications: \
+Use cases: \
+
+TOP SELLING POINTS (ranked by importance):
+\
+
+HARD REQUIREMENTS:
+1. The title MUST start with the brand "\" followed by a space.
+2. TOTAL title length MUST NOT exceed \ characters (count the brand too).
+3. Write in natural, fluent \ with proper word order.
+4. Prefer this structure: Brand + Core product keyword + Key spec/capacity + Core feature + Differentiator.
+5. Include the most important keywords naturally - do NOT keyword-stuff.
+6. Do NOT repeat the same word more than 2 times in the title.
+7. Do NOT use forbidden phrases like "best", "perfect", "No.1", "top-rated", "guaranteed", etc.
+8. The title must read like a real Amazon product title, not a keyword list.
+9. Avoid meaningless scene word padding (e.g., "for kitchen", "for home" if not essential).
+10. Do NOT repeat the product category word unnecessarily (e.g., "Ice Maker Machine Ice Maker").
+
+OUTPUT ONLY the title text, nothing else. No quotes, no labels.
+\;
+}

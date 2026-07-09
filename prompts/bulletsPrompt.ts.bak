@@ -1,0 +1,61 @@
+import { ProductFacts, RankedSellingPoint } from "@/types";
+import { styleGuideForLanguage } from "@/lib/language";
+
+export function buildBulletsPrompt(
+  brand: string,
+  targetLanguage: string,
+  facts: ProductFacts,
+  rankedPoints: RankedSellingPoint[],
+  existingTitle?: string
+): string {
+  const factSummary = facts.features.slice(0, 10).join("; ");
+  const topPoints = rankedPoints.slice(0, 8).map((p) => p.text).join("; ");
+
+  return \
+You are an expert Amazon listing copywriter.
+
+TASK: Generate 5 Amazon bullet points (key features).
+
+TARGET LANGUAGE: \
+STYLE GUIDE: \
+
+PRODUCT FACTS:
+Category: \
+Key features: \
+Capacities/specs: \
+Materials: \
+Certifications: \
+Accessories: \
+Use cases: \
+
+TOP SELLING POINTS:
+\
+
+\
+
+STRUCTURE REQUIREMENTS:
+Each bullet should have:
+- A short CAPITALIZED/emphasized opener (2-4 words)
+- Then the benefit explanation + supporting details
+
+COVERAGE (cover different angles, do NOT make all 5 about the same thing):
+1. Core performance / capacity / output
+2. Function experience / usage effect / key feature
+3. Design / portability / convenience of use
+4. Cleaning / smart control / maintenance
+5. Quietness / materials / certifications / warranty / peace of mind
+
+HARD REQUIREMENTS:
+1. Output exactly 5 bullet points, one per line.
+2. Each bullet should focus on a DIFFERENT selling point.
+3. Lead with customer benefit, then support with specs/parameters.
+4. Write in natural \.
+5. Do NOT keyword-stuff.
+6. Do NOT use forbidden phrases like "best", "perfect", "No.1", "top-rated", etc.
+7. Do NOT make exaggerated or unsubstantiated claims.
+8. Do NOT repeat what's already heavily covered in the title.
+9. Each bullet should sound like a real Amazon listing bullet point.
+
+OUTPUT 5 lines, each line is one bullet point. No numbers, no bullet symbols.
+\;
+}
