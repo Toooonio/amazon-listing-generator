@@ -15,6 +15,7 @@ import { OutputMode, AdvancedSettings, DEFAULT_SETTINGS, GenerateApiResponse } f
 import { generateAmazonCopy, GenerateResult } from "@/lib/generator";
 import { detectLanguage } from "@/lib/language";
 import { validateInput } from "@/lib/validators";
+import BatchGenerator from "@/components/BatchGenerator";
 
 export default function HomePage() {
   const [brand, setBrand] = useState("");
@@ -308,6 +309,9 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Batch Generator Section */}
+        <BatchGenerator />
 
         {/* Footer */}
         <div className="mt-12 pt-6 border-t text-center text-xs" style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}>

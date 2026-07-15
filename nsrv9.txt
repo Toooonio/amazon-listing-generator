@@ -2,22 +2,4 @@
   - Local:        http://localhost:3009
 
  ✓ Starting...
- ✓ Ready in 336ms
-[LANGUAGE DEBUG] targetLanguage: Italian
-[LANGUAGE DEBUG] cjkCount: 0
-[LANGUAGE DEBUG] ruleBasedScores: Italian=6, German=1, French=1, Spanish=1, English=1
-[LANGUAGE DEBUG] ruleBasedResult: Italian
-[LANGUAGE DEBUG] productInfo: Questa macchina per ghiaccio nugget da banco produce ghiaccio morbido e masticabile in 7-10 minuti. Produce 35 libbre di ghiaccio al giorno. Autopulente. Maniglia portatile. Meno di 50dB. Certificazio
-[LANGUAGE DEBUG] detected sourceLanguage: Italian
-[LANGUAGE DEBUG] targetLanguage: German
-[LANGUAGE DEBUG] cjkCount: 45
-[LANGUAGE DEBUG] latinCount: 3 cjk > latin*0.3? true
-[LANGUAGE DEBUG] ruleBasedResult: Chinese
-[LANGUAGE DEBUG] productInfo: 这款台式颗粒冰制冰机可在7-10分钟内生产出柔软可嚼的冰。每天生产35磅冰。自清洁功能。便携手把。低于50分贝。ETL认证。
-[LANGUAGE DEBUG] detected sourceLanguage: Chinese
-[LANGUAGE DEBUG] targetLanguage: French
-[LANGUAGE DEBUG] cjkCount: 0
-[LANGUAGE DEBUG] ruleBasedScores: English=9, French=2, Italian=1, German=1, Spanish=1
-[LANGUAGE DEBUG] ruleBasedResult: English
-[LANGUAGE DEBUG] productInfo: This nugget ice maker produces soft chewable ice in 7-10 minutes. Self-cleaning. Portable handle. Quiet operation under 50dB. ETL certified.
-[LANGUAGE DEBUG] detected sourceLanguage: English
+ ✓ Ready in 535ms
