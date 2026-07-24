@@ -3,6 +3,11 @@ export interface DuplicateCheckResult {
   issues: string[];
 }
 
+export interface KeywordOverlapResult {
+  rate: number;
+  sharedWords: string[];
+}
+
 const STOP_WORDS = new Set([
   "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
   "of", "with", "by", "is", "are", "was", "were", "be", "been", "being",
@@ -18,6 +23,22 @@ function getSignificantWords(text: string): string[] {
     .replace(/[^a-z0-9\s'-]/g, "")
     .split(/\s+/)
     .filter(function(w) { return w.length > 2 && !STOP_WORDS.has(w); });
+}
+
+export function getKeywordOverlapRate(title: string, highlight: string): KeywordOverlapResult {
+  const titleKeywords = new Set(getSignificantWords(title));
+  const highlightKeywords = new Set(getSignificantWords(highlight));
+
+  if (titleKeywords.size === 0 || highlightKeywords.size === 0) {
+    return { rate: 0, sharedWords: [] };
+  }
+
+  const sharedWords = Array.from(titleKeywords).filter((word) => highlightKeywords.has(word));
+  return {
+    // Using the shorter keyword set catches titles that are merely reordered or shortened.
+    rate: sharedWords.length / Math.min(titleKeywords.size, highlightKeywords.size),
+    sharedWords,
+  };
 }
 
 export function checkDuplicateBetween(

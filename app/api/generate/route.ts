@@ -19,7 +19,7 @@ import {
 } from "@/prompts/descriptionPrompt";
 import { detectSourceLanguage, normalizeTargetLanguage, buildLanguageInstruction } from "@/lib/languageProcessor";
 import { checkCompliance, cleanCopy, validateAllOutputs } from "@/lib/compliance";
-import { checkAllDuplicates } from "@/lib/duplicateChecker";
+import { checkAllDuplicates, getKeywordOverlapRate } from "@/lib/duplicateChecker";
 import { translateToChinese, translateBulletsToChinese } from "@/lib/translator";
 import { SupportedLanguage } from "@/lib/languageConfig";
 import { buildSellingPointExtractionPrompt, emptySellingPointAnalysis, SellingPointAnalysis } from "@/lib/sellingPointExtractor";
@@ -225,35 +225,55 @@ export async function POST(request: NextRequest) {
     // Step 6: Generate highlights
     if (shouldGenerateHighlights && result.title.original) {
       try {
-        const highlightText = await callDeepSeek({
-          systemPrompt: buildHighlightSystemPrompt(),
-          userPrompt: buildHighlightUserPrompt({
-            brand,
-            targetLanguage,
-            sourceLanguage,
-            existingTitle: result.title.original,
-            productType: facts.productType,
-            features: facts.features,
-            specifications: facts.specifications,
-            useCases: facts.useCases,
-            coreSellingPoints: sellingPoints.coreSellingPoints,
-            benefits: sellingPoints.benefits,
-            functions: sellingPoints.functions,
-            copyMode: resolvedCopyMode,
-            rawProductInfo: productInfo,
-            highlightMaxLength: settings.highlightMaxLength || 125,
-            languageInstruction,
-          }),
-          temperature: 0.7,
-          maxTokens: 200,
-        });
+        let cleaned = "";
+        let overlap = { rate: 1, sharedWords: [] as string[] };
+        const maxHighlightAttempts = 3;
 
-        let cleaned = cleanAndCap(highlightText, settings.highlightMaxLength || 125);
+        for (let attempt = 0; attempt < maxHighlightAttempts; attempt++) {
+          const highlightText = await callDeepSeek({
+            systemPrompt: buildHighlightSystemPrompt(),
+            userPrompt: buildHighlightUserPrompt({
+              brand,
+              targetLanguage,
+              sourceLanguage,
+              existingTitle: result.title.original,
+              productType: facts.productType,
+              features: facts.features,
+              specifications: facts.specifications,
+              useCases: facts.useCases,
+              coreSellingPoints: sellingPoints.coreSellingPoints,
+              benefits: sellingPoints.benefits,
+              functions: sellingPoints.functions,
+              copyMode: resolvedCopyMode,
+              rawProductInfo: productInfo,
+              regenerationAttempt: attempt,
+              overlapKeywords: overlap.sharedWords,
+              highlightMaxLength: settings.highlightMaxLength || 125,
+              languageInstruction,
+            }),
+            temperature: 0.7,
+            maxTokens: 200,
+          });
 
-        if (settings.amazonCompliance) {
-          const compResult = checkCompliance(cleaned);
-          compResult.violations.forEach((v) => complianceWarnings.push("[Highlights] " + v));
-          cleaned = cleanCopy(compResult.cleanedText);
+          cleaned = cleanAndCap(highlightText, settings.highlightMaxLength || 125);
+
+          if (settings.amazonCompliance) {
+            const compResult = checkCompliance(cleaned);
+            compResult.violations.forEach((v) => complianceWarnings.push("[Highlights] " + v));
+            cleaned = cleanCopy(compResult.cleanedText);
+          }
+
+          overlap = getKeywordOverlapRate(result.title.original, cleaned);
+          if (overlap.rate <= 0.6) {
+            break;
+          }
+        }
+
+        if (overlap.rate > 0.6) {
+          warnings.push(
+            "[Highlight] Title keyword overlap remains " + Math.round(overlap.rate * 100) +
+            "% after " + maxHighlightAttempts + " attempts: " + overlap.sharedWords.join(", ")
+          );
         }
 
         result.highlight.original = cleaned;
