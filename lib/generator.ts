@@ -1,4 +1,4 @@
-import { OutputMode, AdvancedSettings, GenerateApiResponse, LocalizedField } from "@/types";
+import { OutputMode, CopyMode, AdvancedSettings, GenerateApiResponse } from "@/types";
 import { validateInput } from "@/lib/validators";
 
 export interface GenerateRequest {
@@ -6,6 +6,7 @@ export interface GenerateRequest {
   brand: string;
   targetLanguage: string;
   mode: OutputMode;
+  copyMode?: CopyMode;
   settings: AdvancedSettings;
 }
 
@@ -19,7 +20,7 @@ export interface GenerateResult {
 export async function generateAmazonCopy(
   request: GenerateRequest
 ): Promise<GenerateResult> {
-  const { rawText, brand, targetLanguage, mode, settings } = request;
+  const { rawText, brand, targetLanguage, mode, copyMode = "auto", settings } = request;
 
   const inputValidation = validateInput(rawText, brand);
   if (!inputValidation.valid) {
@@ -45,6 +46,7 @@ export async function generateAmazonCopy(
         brand: brand.trim(),
         language: targetLanguage,
         mode,
+        copyMode,
         productInfo: rawText,
         settings: {
           titleMaxLength: settings.titleMaxLength,

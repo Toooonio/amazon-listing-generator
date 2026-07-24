@@ -2,6 +2,8 @@ export type WritingStyle = "seo" | "balanced" | "conversion";
 
 export type OutputMode = "title-highlights" | "bullets" | "description" | "all";
 
+export type CopyMode = "auto" | "create" | "optimize";
+
 export interface AdvancedSettings {
   titleMaxLength: number;
   highlightMaxLength: number;
@@ -23,6 +25,7 @@ export interface ListingResult {
   meta: {
     sourceLanguage: string;
     targetLanguage: string;
+    copyMode?: Exclude<CopyMode, "auto">;
   };
 }
 
@@ -34,6 +37,7 @@ export interface GenerateApiResponse {
   meta: {
     sourceLanguage: string;
     targetLanguage: string;
+    copyMode?: Exclude<CopyMode, "auto">;
   };
   warnings?: string[];
   complianceWarnings?: string[];

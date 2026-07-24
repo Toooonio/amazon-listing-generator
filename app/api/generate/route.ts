@@ -22,7 +22,8 @@ import { checkCompliance, cleanCopy, validateAllOutputs } from "@/lib/compliance
 import { checkAllDuplicates } from "@/lib/duplicateChecker";
 import { translateToChinese, translateBulletsToChinese } from "@/lib/translator";
 import { SupportedLanguage } from "@/lib/languageConfig";
-import { LocalizedField } from "@/types";
+import { buildSellingPointExtractionPrompt, emptySellingPointAnalysis, SellingPointAnalysis } from "@/lib/sellingPointExtractor";
+import { CopyMode, LocalizedField } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,7 @@ interface GenerateRequest {
   brand: string;
   language: string;
   mode: string;
+  copyMode?: CopyMode;
   productInfo: string;
   settings: {
     titleMaxLength: number;
@@ -48,6 +50,7 @@ interface GenerateResponse {
   meta: {
     sourceLanguage: string;
     targetLanguage: string;
+    copyMode: Exclude<CopyMode, "auto">;
   };
   warnings?: string[];
   complianceWarnings?: string[];
@@ -69,10 +72,18 @@ function cleanAndCap(text: string, maxLen: number): string {
   return cleaned;
 }
 
+function resolveCopyMode(input: CopyMode | undefined, productInfo: string): Exclude<CopyMode, "auto"> {
+  if (input === "create" || input === "optimize") {
+    return input;
+  }
+
+  return productInfo.trim().length >= 300 ? "optimize" : "create";
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: GenerateRequest = await request.json();
-    const { brand, language, mode, productInfo, settings } = body;
+    const { brand, language, mode, copyMode, productInfo, settings } = body;
 
     if (!brand || !productInfo) {
       return NextResponse.json(
@@ -83,6 +94,11 @@ export async function POST(request: NextRequest) {
 
     const warnings: string[] = [];
     const complianceWarnings: string[] = [];
+    const resolvedCopyMode = resolveCopyMode(copyMode, productInfo);
+    const shouldGenerateTitle = mode === "title-highlights" || mode === "all";
+    const shouldGenerateHighlights = mode === "title-highlights" || mode === "all";
+    const shouldGenerateBullets = mode === "bullets" || mode === "all";
+    const shouldGenerateDescription = mode === "description" || mode === "all";
 
     // Step 1: Normalize target language (user's choice - this is the ONLY determinant)
     const targetLanguage: SupportedLanguage = normalizeTargetLanguage(language || "English");
@@ -121,6 +137,27 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // Analyze high-value selling propositions once before title/highlight generation.
+    let sellingPoints: SellingPointAnalysis = emptySellingPointAnalysis(facts, brand);
+    if (shouldGenerateTitle || shouldGenerateHighlights) {
+      try {
+        sellingPoints = await callDeepSeekJSON<SellingPointAnalysis>({
+          systemPrompt: "Extract verified Amazon selling-point categories as JSON. Return ONLY valid JSON, no markdown or explanation.",
+          userPrompt: buildSellingPointExtractionPrompt({
+            brand,
+            rawText: productInfo,
+            sourceLanguage,
+            facts,
+          }),
+          temperature: 0.2,
+          maxTokens: 800,
+        });
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Unknown error";
+        warnings.push("Selling point analysis failed: " + errorMsg);
+      }
+    }
+
     const result: GenerateResponse = {
       title: emptyField(),
       highlight: emptyField(),
@@ -129,13 +166,9 @@ export async function POST(request: NextRequest) {
       meta: {
         sourceLanguage,
         targetLanguage,
+        copyMode: resolvedCopyMode,
       },
     };
-
-    const shouldGenerateTitle = mode === "title-highlights" || mode === "all";
-    const shouldGenerateHighlights = mode === "title-highlights" || mode === "all";
-    const shouldGenerateBullets = mode === "bullets" || mode === "all";
-    const shouldGenerateDescription = mode === "description" || mode === "all";
 
     // Step 5: Generate title
     if (shouldGenerateTitle) {
@@ -151,6 +184,9 @@ export async function POST(request: NextRequest) {
             features: facts.features,
             specifications: facts.specifications,
             useCases: facts.useCases,
+            coreSellingPoints: sellingPoints.coreSellingPoints,
+            copyMode: resolvedCopyMode,
+            rawProductInfo: productInfo,
             titleMaxLength: settings.titleMaxLength || 75,
             languageInstruction,
           }),
@@ -200,6 +236,11 @@ export async function POST(request: NextRequest) {
             features: facts.features,
             specifications: facts.specifications,
             useCases: facts.useCases,
+            coreSellingPoints: sellingPoints.coreSellingPoints,
+            benefits: sellingPoints.benefits,
+            functions: sellingPoints.functions,
+            copyMode: resolvedCopyMode,
+            rawProductInfo: productInfo,
             highlightMaxLength: settings.highlightMaxLength || 125,
             languageInstruction,
           }),

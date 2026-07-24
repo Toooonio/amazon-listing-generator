@@ -5,13 +5,14 @@ import { FileText } from "lucide-react";
 import BrandInput from "@/components/BrandInput";
 import LanguageSelector from "@/components/LanguageSelector";
 import OutputModeSelector from "@/components/OutputModeSelector";
+import CopyModeSelector from "@/components/CopyModeSelector";
 import AdvancedSettingsPanel from "@/components/AdvancedSettings";
 import ProductInputTextarea from "@/components/ProductInputTextarea";
 import GenerateButton from "@/components/GenerateButton";
 import OutputCard from "@/components/OutputCard";
 import BulletOutput from "@/components/BulletOutput";
 import ComplianceWarning from "@/components/ComplianceWarning";
-import { OutputMode, AdvancedSettings, DEFAULT_SETTINGS, GenerateApiResponse } from "@/types";
+import { OutputMode, CopyMode, AdvancedSettings, DEFAULT_SETTINGS, GenerateApiResponse } from "@/types";
 import { generateAmazonCopy, GenerateResult } from "@/lib/generator";
 import { detectLanguage } from "@/lib/language";
 import { validateInput } from "@/lib/validators";
@@ -21,6 +22,7 @@ export default function HomePage() {
   const [brand, setBrand] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("en");
   const [mode, setMode] = useState<OutputMode>("all");
+  const [copyMode, setCopyMode] = useState<CopyMode>("auto");
   const [settings, setSettings] = useState<AdvancedSettings>(DEFAULT_SETTINGS);
   const [productText, setProductText] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,6 +63,7 @@ export default function HomePage() {
           brand: brand.trim(),
           targetLanguage,
           mode,
+          copyMode,
           settings,
         });
         setResult(genResult);
@@ -80,7 +83,7 @@ export default function HomePage() {
       } finally {
         setLoading(false);
       }
-  }, [productText, brand, targetLanguage, mode, settings]);
+  }, [productText, brand, targetLanguage, mode, copyMode, settings]);
 
   const regenerateTitle = useCallback(async () => {
     if (!productText || !brand) return;
@@ -89,6 +92,7 @@ export default function HomePage() {
       brand: brand.trim(),
       targetLanguage,
       mode: "title-highlights",
+      copyMode,
       settings,
     });
     setResult((prev) =>
@@ -99,7 +103,7 @@ export default function HomePage() {
           }
         : prev
     );
-  }, [productText, brand, targetLanguage, settings]);
+  }, [productText, brand, targetLanguage, copyMode, settings]);
 
   const regenerateHighlights = useCallback(async () => {
     if (!productText || !brand || !result?.output.title?.original) return;
@@ -108,6 +112,7 @@ export default function HomePage() {
       brand: brand.trim(),
       targetLanguage,
       mode: "title-highlights",
+      copyMode,
       settings,
     });
     setResult((prev) =>
@@ -115,7 +120,7 @@ export default function HomePage() {
         ? { ...prev, output: { ...prev.output, highlight: genResult.output.highlight } }
         : prev
     );
-  }, [productText, brand, targetLanguage, settings, result]);
+  }, [productText, brand, targetLanguage, copyMode, settings, result]);
 
   const regenerateBullets = useCallback(async () => {
     if (!productText || !brand) return;
@@ -124,12 +129,13 @@ export default function HomePage() {
       brand: brand.trim(),
       targetLanguage,
       mode: "bullets",
+      copyMode,
       settings,
     });
     setResult((prev) =>
       prev ? { ...prev, output: { ...prev.output, bullets: genResult.output.bullets } } : prev
     );
-  }, [productText, brand, targetLanguage, settings]);
+  }, [productText, brand, targetLanguage, copyMode, settings]);
 
   const regenerateDescription = useCallback(async () => {
     if (!productText || !brand) return;
@@ -138,12 +144,13 @@ export default function HomePage() {
       brand: brand.trim(),
       targetLanguage,
       mode: "description",
+      copyMode,
       settings,
     });
     setResult((prev) =>
       prev ? { ...prev, output: { ...prev.output, description: genResult.output.description } } : prev
     );
-  }, [productText, brand, targetLanguage, settings]);
+  }, [productText, brand, targetLanguage, copyMode, settings]);
 
   const output = result?.output || { title: { original: "", zh: "" }, highlight: { original: "", zh: "" }, bullets: [], description: { original: "", zh: "" }, meta: { sourceLanguage: "", targetLanguage: "" } };
   const hasTitle = !!(mode === "title-highlights" || mode === "all") && !!output.title?.original;
@@ -179,6 +186,8 @@ export default function HomePage() {
             />
 
             <OutputModeSelector value={mode} onChange={setMode} />
+
+            <CopyModeSelector value={copyMode} onChange={setCopyMode} />
 
             <AdvancedSettingsPanel settings={settings} onChange={setSettings} />
 
