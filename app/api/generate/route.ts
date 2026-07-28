@@ -23,6 +23,12 @@ import { checkAllDuplicates, getKeywordOverlapRate } from "@/lib/duplicateChecke
 import { translateToChinese, translateBulletsToChinese } from "@/lib/translator";
 import { SupportedLanguage } from "@/lib/languageConfig";
 import { buildSellingPointExtractionPrompt, emptySellingPointAnalysis, SellingPointAnalysis } from "@/lib/sellingPointExtractor";
+import {
+  buildInformationAllocationPrompt,
+  CopyFrameworkAllocation,
+  createFallbackAllocation,
+  normalizeCopyFrameworkAllocation,
+} from "@/lib/copyFramework";
 import { CopyMode, LocalizedField } from "@/types";
 
 export const runtime = "nodejs";
@@ -70,6 +76,10 @@ function cleanAndCap(text: string, maxLen: number): string {
     cleaned = cleaned.slice(0, maxLen - 3).replace(/\s+\S*$/, "") + "...";
   }
   return cleaned;
+}
+
+function cleanTitleAndCap(text: string, maxLen: number): string {
+  return cleanAndCap(text, maxLen).replace(/[.!?]+$/, "").trim();
 }
 
 function resolveCopyMode(input: CopyMode | undefined, productInfo: string): Exclude<CopyMode, "auto"> {
@@ -158,6 +168,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Allocate verified facts into the fixed V2.7 Title and Highlight frameworks.
+    const fallbackAllocation = createFallbackAllocation(facts, sellingPoints);
+    let copyAllocation: CopyFrameworkAllocation = fallbackAllocation;
+    if (shouldGenerateTitle || shouldGenerateHighlights) {
+      try {
+        const allocationResponse = await callDeepSeekJSON<unknown>({
+          systemPrompt: "Allocate verified Amazon listing facts into the requested JSON framework. Return ONLY valid JSON.",
+          userPrompt: buildInformationAllocationPrompt({
+            brand,
+            rawText: productInfo,
+            targetLanguage,
+            sourceLanguage,
+            copyMode: resolvedCopyMode,
+            facts,
+            sellingPoints,
+          }),
+          temperature: 0.2,
+          maxTokens: 900,
+        });
+        copyAllocation = normalizeCopyFrameworkAllocation(allocationResponse, fallbackAllocation);
+      } catch (err: unknown) {
+        const errorMsg = err instanceof Error ? err.message : "Unknown error";
+        warnings.push("Information allocation failed: " + errorMsg);
+      }
+    }
+
     const result: GenerateResponse = {
       title: emptyField(),
       highlight: emptyField(),
@@ -179,12 +215,7 @@ export async function POST(request: NextRequest) {
             brand,
             targetLanguage,
             sourceLanguage,
-            productType: facts.productType,
-            mainKeyword: facts.mainKeyword,
-            features: facts.features,
-            specifications: facts.specifications,
-            useCases: facts.useCases,
-            coreSellingPoints: sellingPoints.coreSellingPoints,
+            allocation: copyAllocation.title,
             copyMode: resolvedCopyMode,
             rawProductInfo: productInfo,
             titleMaxLength: settings.titleMaxLength || 75,
@@ -194,16 +225,17 @@ export async function POST(request: NextRequest) {
           maxTokens: 200,
         });
 
-        let cleaned = cleanAndCap(titleText, settings.titleMaxLength || 75);
+        let cleaned = cleanTitleAndCap(titleText, settings.titleMaxLength || 75);
         if (!cleaned.startsWith(brand)) {
           complianceWarnings.push("[Title] Does not start with brand name");
+          cleaned = cleanTitleAndCap(brand + " " + cleaned, settings.titleMaxLength || 75);
         }
 
         // Compliance check
         if (settings.amazonCompliance) {
           const compResult = checkCompliance(cleaned);
           compResult.violations.forEach((v) => complianceWarnings.push("[Title] " + v));
-          cleaned = cleanCopy(compResult.cleanedText);
+          cleaned = cleanTitleAndCap(compResult.cleanedText, settings.titleMaxLength || 75);
         }
 
         result.title.original = cleaned;
@@ -226,7 +258,8 @@ export async function POST(request: NextRequest) {
     if (shouldGenerateHighlights && result.title.original) {
       try {
         let cleaned = "";
-        let overlap = { rate: 1, sharedWords: [] as string[] };
+        let overlap = getKeywordOverlapRate("", "");
+        let finalHighlightViolations: string[] = [];
         const maxHighlightAttempts = 3;
 
         for (let attempt = 0; attempt < maxHighlightAttempts; attempt++) {
@@ -237,13 +270,7 @@ export async function POST(request: NextRequest) {
               targetLanguage,
               sourceLanguage,
               existingTitle: result.title.original,
-              productType: facts.productType,
-              features: facts.features,
-              specifications: facts.specifications,
-              useCases: facts.useCases,
-              coreSellingPoints: sellingPoints.coreSellingPoints,
-              benefits: sellingPoints.benefits,
-              functions: sellingPoints.functions,
+              allocation: copyAllocation.highlight,
               copyMode: resolvedCopyMode,
               rawProductInfo: productInfo,
               regenerationAttempt: attempt,
@@ -259,20 +286,23 @@ export async function POST(request: NextRequest) {
 
           if (settings.amazonCompliance) {
             const compResult = checkCompliance(cleaned);
-            compResult.violations.forEach((v) => complianceWarnings.push("[Highlights] " + v));
+            finalHighlightViolations = compResult.violations;
             cleaned = cleanCopy(compResult.cleanedText);
           }
 
           overlap = getKeywordOverlapRate(result.title.original, cleaned);
-          if (overlap.rate <= 0.6) {
+          if (overlap.rate <= 0.5) {
             break;
           }
         }
 
-        if (overlap.rate > 0.6) {
+        finalHighlightViolations.forEach((v) => complianceWarnings.push("[Highlights] " + v));
+
+        if (overlap.rate > 0.5) {
           warnings.push(
-            "[Highlight] Title keyword overlap remains " + Math.round(overlap.rate * 100) +
-            "% after " + maxHighlightAttempts + " attempts: " + overlap.sharedWords.join(", ")
+            "[Highlight] Title overlap remains " + Math.round(overlap.rate * 100) +
+            "% after " + maxHighlightAttempts + " attempts. Shared keywords: " +
+            overlap.sharedWords.join(", ") + ". Shared phrases: " + overlap.sharedPhrases.join(", ")
           );
         }
 

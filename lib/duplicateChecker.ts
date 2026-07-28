@@ -5,7 +5,10 @@ export interface DuplicateCheckResult {
 
 export interface KeywordOverlapResult {
   rate: number;
+  keywordRate: number;
+  phraseRate: number;
   sharedWords: string[];
+  sharedPhrases: string[];
 }
 
 const STOP_WORDS = new Set([
@@ -15,30 +18,69 @@ const STOP_WORDS = new Set([
   "should", "may", "might", "can", "shall", "its", "it's", "your", "our",
   "their", "this", "that", "these", "those", "from", "into", "about",
   "than", "then", "also", "very", "just", "not", "no", "so",
+  "und", "mit", "fur", "für", "der", "die", "das", "von", "auf",
+  "con", "per", "una", "uno", "del", "della", "para", "por", "los", "las",
+  "avec", "pour", "une", "des", "du", "sur", "dans", "les",
 ]);
 
 function getSignificantWords(text: string): string[] {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s'-]/g, "")
+  const normalized = text.toLowerCase();
+  const cjkRuns = normalized.match(/[\u3040-\u30ff\u3400-\u9fff]+/g) || [];
+  const cjkTokens: string[] = [];
+
+  for (const run of cjkRuns) {
+    if (run.length === 1) {
+      cjkTokens.push(run);
+      continue;
+    }
+    for (let i = 0; i < run.length - 1; i++) {
+      cjkTokens.push(run.slice(i, i + 2));
+    }
+  }
+
+  const latinWords = normalized
+    .replace(/[\u3040-\u30ff\u3400-\u9fff]+/g, " ")
+    .replace(/[^a-z0-9\u00c0-\u024f\s'-]/g, "")
     .split(/\s+/)
     .filter(function(w) { return w.length > 2 && !STOP_WORDS.has(w); });
+
+  return latinWords.concat(cjkTokens);
 }
 
 export function getKeywordOverlapRate(title: string, highlight: string): KeywordOverlapResult {
-  const titleKeywords = new Set(getSignificantWords(title));
-  const highlightKeywords = new Set(getSignificantWords(highlight));
+  const titleWords = getSignificantWords(title);
+  const highlightWords = getSignificantWords(highlight);
+  const titleKeywords = new Set(titleWords);
+  const highlightKeywords = new Set(highlightWords);
 
   if (titleKeywords.size === 0 || highlightKeywords.size === 0) {
-    return { rate: 0, sharedWords: [] };
+    return { rate: 0, keywordRate: 0, phraseRate: 0, sharedWords: [], sharedPhrases: [] };
   }
 
   const sharedWords = Array.from(titleKeywords).filter((word) => highlightKeywords.has(word));
+  const keywordRate = sharedWords.length / Math.min(titleKeywords.size, highlightKeywords.size);
+  const titlePhrases = new Set(createPhrases(titleWords));
+  const highlightPhrases = new Set(createPhrases(highlightWords));
+  const sharedPhrases = Array.from(titlePhrases).filter((phrase) => highlightPhrases.has(phrase));
+  const phraseDenominator = Math.min(titlePhrases.size, highlightPhrases.size);
+  const phraseRate = phraseDenominator > 0 ? sharedPhrases.length / phraseDenominator : 0;
+
   return {
-    // Using the shorter keyword set catches titles that are merely reordered or shortened.
-    rate: sharedWords.length / Math.min(titleKeywords.size, highlightKeywords.size),
+    // Keyword overlap catches reordering; phrase overlap catches copied expressions.
+    rate: Math.max(keywordRate, phraseRate),
+    keywordRate,
+    phraseRate,
     sharedWords,
+    sharedPhrases,
   };
+}
+
+function createPhrases(words: string[]): string[] {
+  const phrases: string[] = [];
+  for (let i = 0; i < words.length - 1; i++) {
+    phrases.push(words[i] + " " + words[i + 1]);
+  }
+  return phrases;
 }
 
 export function checkDuplicateBetween(
